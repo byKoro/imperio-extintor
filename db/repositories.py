@@ -483,17 +483,18 @@ def criar_pedido(conn: sqlite3.Connection, pedido: Pedido) -> int:
 
 
 def atualizar_pedido(conn: sqlite3.Connection, pedido: Pedido) -> None:
-    """Atualiza dados do pedido. Levanta ValueError se o pedido já estiver FATURADO."""
+    """Atualiza dados do cabeçalho do pedido no banco de dados."""
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM pedidos WHERE id = ?", (pedido.id,))
+    cursor.execute("SELECT id FROM pedidos WHERE id = ?", (pedido.id,))
     row = cursor.fetchone()
     if not row:
         raise ValueError(f"Pedido com id {pedido.id} não encontrado.")
-    if row["status"] in ("FATURADO", "PAGO"):
-        raise PermissionError("Pedido faturado ou pago não pode ser alterado.")
 
     cursor.execute("""
         UPDATE pedidos SET
+            cliente_id = ?,
+            loja_id = ?,
+            numero_pedido = ?,
             data_emissao = ?,
             data_execucao = ?,
             status = ?,
@@ -504,6 +505,7 @@ def atualizar_pedido(conn: sqlite3.Connection, pedido: Pedido) -> None:
             texto_impostos = ?
         WHERE id = ?
     """, (
+        pedido.cliente_id, pedido.loja_id, str(pedido.numero_pedido).strip(),
         pedido.data_emissao, pedido.data_execucao, pedido.status,
         pedido.observacoes, pedido.prazo_pagamento,
         pedido.forma_pagamento, pedido.prazo_entrega, pedido.texto_impostos,
@@ -535,14 +537,8 @@ def buscar_pedido_por_id(conn: sqlite3.Connection, pedido_id: int) -> Optional[P
 
 
 def adicionar_item_pedido(conn: sqlite3.Connection, item: ItemPedido) -> int:
-    """Adiciona um item ao pedido. Bloqueia se o pedido estiver faturado."""
+    """Adiciona um item ao pedido."""
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM pedidos WHERE id = ?", (item.pedido_id,))
-    row = cursor.fetchone()
-    if row and row["status"] in ("FATURADO", "PAGO"):
-        raise PermissionError("Não é permitido adicionar itens a um pedido faturado.")
-
-    # Calcula valor_total arredondado para 2 casas decimais
     total = round(item.quantidade * item.preco_unitario, 2)
     cursor.execute("""
         INSERT INTO itens_pedido (
@@ -574,6 +570,223 @@ def listar_itens_pedido(conn: sqlite3.Connection, pedido_id: int) -> List[ItemPe
             ordem=row["ordem"],
         ))
     return itens
+
+
+def verificar_numero_pedido_existe(
+    conn: sqlite3.Connection,
+    cliente_id: int,
+    numero_pedido: str,
+    exceto_id: Optional[int] = None
+) -> bool:
+    """Verifica se já existe pedido com o mesmo número para o cliente."""
+    cursor = conn.cursor()
+    num = str(numero_pedido).strip()
+    if exceto_id is not None:
+        cursor.execute(
+            "SELECT 1 FROM pedidos WHERE cliente_id = ? AND numero_pedido = ? AND id != ?",
+            (cliente_id, num, exceto_id)
+        )
+    else:
+        cursor.execute(
+            "SELECT 1 FROM pedidos WHERE cliente_id = ? AND numero_pedido = ?",
+            (cliente_id, num)
+        )
+    return cursor.fetchone() is not None
+
+
+def listar_clientes_ativos(conn: sqlite3.Connection) -> List[Cliente]:
+    """Retorna clientes ativos (ativo = 1) para novos pedidos."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM clientes WHERE ativo = 1 ORDER BY razao_social COLLATE NOCASE")
+    clientes = []
+    for row in cursor.fetchall():
+        clientes.append(Cliente(
+            id=row["id"],
+            razao_social=row["razao_social"],
+            nome_fantasia=row["nome_fantasia"],
+            cnpj=row["cnpj"],
+            inscricao_estadual=row["inscricao_estadual"],
+            endereco=row["endereco"],
+            telefone=row["telefone"],
+            email=row["email"],
+            contato=row["contato"],
+            prazo_pagamento=row["prazo_pagamento"],
+            forma_pagamento=row["forma_pagamento"],
+            prazo_entrega=row["prazo_entrega"],
+            texto_impostos=row["texto_impostos"],
+            ativo=row["ativo"],
+            created_at=row["created_at"],
+        ))
+    return clientes
+
+
+def listar_lojas_por_cliente(
+    conn: sqlite3.Connection,
+    cliente_id: int,
+    incluir_loja_id: Optional[int] = None
+) -> List[Loja]:
+    """Retorna lojas do cliente.
+    
+    Se incluir_loja_id for None (novo pedido), retorna apenas lojas com ativo = 1.
+    Se incluir_loja_id for fornecido (edição de pedido), retorna lojas ativas + a loja histórica especificada.
+    """
+    cursor = conn.cursor()
+    if incluir_loja_id is not None:
+        cursor.execute("""
+            SELECT * FROM lojas
+            WHERE cliente_id = ? AND (ativo = 1 OR id = ?)
+            ORDER BY codigo_loja
+        """, (cliente_id, incluir_loja_id))
+    else:
+        cursor.execute("""
+            SELECT * FROM lojas
+            WHERE cliente_id = ? AND ativo = 1
+            ORDER BY codigo_loja
+        """, (cliente_id,))
+    
+    lojas = []
+    for row in cursor.fetchall():
+        lojas.append(Loja(
+            id=row["id"],
+            cliente_id=row["cliente_id"],
+            codigo_loja=row["codigo_loja"],
+            nome_site=row["nome_site"],
+            cidade=row["cidade"],
+            uf=row["uf"],
+            modelo_bandeira=row["modelo_bandeira"],
+            vencimento=row["vencimento"],
+            observacao=row["observacao"],
+            notificada=row["notificada"],
+            ativo=row["ativo"],
+            created_at=row["created_at"],
+        ))
+    return lojas
+
+
+def listar_pedidos(
+    conn: sqlite3.Connection,
+    cliente_id: Optional[int] = None,
+    loja_id: Optional[int] = None,
+    status: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Lista pedidos com dados complementares para a visualização em tabela."""
+    cursor = conn.cursor()
+    query = """
+        SELECT 
+            p.id,
+            p.cliente_id,
+            c.razao_social as cliente_nome,
+            p.loja_id,
+            l.codigo_loja,
+            l.nome_site as loja_nome,
+            p.numero_pedido,
+            p.data_emissao,
+            p.data_execucao,
+            p.status,
+            p.observacoes,
+            COALESCE(SUM(i.valor_total), 0.0) as valor_total
+        FROM pedidos p
+        INNER JOIN clientes c ON c.id = p.cliente_id
+        INNER JOIN lojas l ON l.id = p.loja_id
+        LEFT JOIN itens_pedido i ON i.pedido_id = p.id
+        WHERE 1=1
+    """
+    params = []
+    if cliente_id is not None:
+        query += " AND p.cliente_id = ?"
+        params.append(cliente_id)
+    if loja_id is not None:
+        query += " AND p.loja_id = ?"
+        params.append(loja_id)
+    if status is not None and str(status).strip() and str(status).strip().upper() != "TODOS":
+        query += " AND p.status = ?"
+        params.append(str(status).strip().upper())
+
+    query += " GROUP BY p.id ORDER BY p.data_emissao DESC, p.id DESC"
+    cursor.execute(query, params)
+
+    pedidos = []
+    for row in cursor.fetchall():
+        pedidos.append({
+            "id": row["id"],
+            "cliente_id": row["cliente_id"],
+            "cliente_nome": row["cliente_nome"],
+            "loja_id": row["loja_id"],
+            "loja_codigo": row["codigo_loja"],
+            "loja_nome": row["loja_nome"],
+            "numero_pedido": row["numero_pedido"],
+            "data_emissao": row["data_emissao"],
+            "data_execucao": row["data_execucao"],
+            "status": row["status"],
+            "observacoes": row["observacoes"],
+            "valor_total": float(row["valor_total"]),
+        })
+    return pedidos
+
+
+def salvar_pedido_completo(
+    conn: sqlite3.Connection,
+    pedido: Pedido,
+    itens: List[ItemPedido]
+) -> int:
+    """Salva pedido e itens de forma atômica.
+    
+    Se conn.in_transaction for False, abre transação e faz commit ao final.
+    Se já houver transação aberta pelo chamador, preserva a transação existente.
+    """
+    abriu_transacao = False
+    if not conn.in_transaction:
+        conn.execute("BEGIN TRANSACTION;")
+        abriu_transacao = True
+
+    try:
+        if pedido.id is None:
+            pedido_id = criar_pedido(conn, pedido)
+            pedido.id = pedido_id
+        else:
+            atualizar_pedido(conn, pedido)
+            pedido_id = pedido.id
+            conn.execute("DELETE FROM itens_pedido WHERE pedido_id = ?", (pedido_id,))
+
+        for idx, item in enumerate(itens):
+            item.pedido_id = pedido_id
+            item.ordem = idx
+            adicionar_item_pedido(conn, item)
+
+        if abriu_transacao:
+            conn.commit()
+        return pedido_id
+    except Exception:
+        if abriu_transacao:
+            conn.rollback()
+        raise
+
+
+def excluir_pedido_seguro(conn: sqlite3.Connection, pedido_id: int) -> None:
+    """Exclui pedido e seus itens de forma atômica dentro de transação."""
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM ajustes WHERE pedido_id = ?", (pedido_id,))
+    if cur.fetchone()[0] > 0:
+        raise PermissionError("Não é possível excluir: existem ajustes vinculados a este pedido.")
+
+    cur.execute("SELECT COUNT(*) FROM faturamento_itens WHERE pedido_id = ?", (pedido_id,))
+    if cur.fetchone()[0] > 0:
+        raise PermissionError("Não é possível excluir: existem faturamentos vinculados a este pedido.")
+
+    abriu_transacao = False
+    if not conn.in_transaction:
+        conn.execute("BEGIN TRANSACTION;")
+        abriu_transacao = True
+
+    try:
+        conn.execute("DELETE FROM itens_pedido WHERE pedido_id = ?", (pedido_id,))
+        conn.execute("DELETE FROM pedidos WHERE id = ?", (pedido_id,))
+        if abriu_transacao:
+            conn.commit()
+    except Exception:
+        if abriu_transacao:
+            conn.rollback()
+        raise
 
 
 # ==========================================

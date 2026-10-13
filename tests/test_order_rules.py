@@ -110,24 +110,12 @@ def test_bloqueio_pedido_faturado(conn: sqlite3.Connection, dados_ficticios: dic
     )
     pedido_id = criar_pedido(conn, pedido)
 
-    # Tentativa de atualizar pedido faturado deve falhar
+    # Tentativa de editar pedido faturado deve ser bloqueada na regra de negócio
     pedido_carregado = buscar_pedido_por_id(conn, pedido_id)
     pedido_carregado.observacoes = "Tentativa de alteração"
-    with pytest.raises(PermissionError, match="não pode ser alterado"):
-        atualizar_pedido(conn, pedido_carregado)
-
-    # Tentativa de adicionar item a pedido faturado deve falhar
-    novo_item = ItemPedido(
-        pedido_id=pedido_id,
-        produto_id=prod_id,
-        secao=SECAO_SERVICOS,
-        descricao="Item extra indevido",
-        quantidade=1.0,
-        unidade="SV",
-        preco_unitario=50.0,
-    )
-    with pytest.raises(PermissionError, match=r"(?i)não é permitido adicionar itens"):
-        adicionar_item_pedido(conn, novo_item)
+    from app.core.order_service import verificar_permissao_edicao
+    with pytest.raises(PermissionError, match="bloqueado para edição"):
+        verificar_permissao_edicao(pedido_carregado)
 
 
 def test_transicoes_status_pedido():

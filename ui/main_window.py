@@ -9,6 +9,7 @@ from ui.views.clientes_view import ClientesView
 from ui.views.lojas_view import LojasView
 from ui.views.produtos_view import ProdutosView
 from ui.views.precos_cliente_view import PrecosClienteDialog
+from ui.views.pedidos_view import PedidosView
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +41,10 @@ class MainWindow(QMainWindow):
         self.view_produtos = ProdutosView(self.conn, self)
         self.tabs.addTab(self.view_produtos, "🧯 Produtos e Serviços")
 
+        # 4. View de Pedidos
+        self.view_pedidos = PedidosView(self.conn, self)
+        self.tabs.addTab(self.view_pedidos, "📋 Pedidos")
+
         # Status Bar
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
@@ -54,6 +59,8 @@ class MainWindow(QMainWindow):
             self.view_lojas.carregar_clientes()
         elif index == 2:
             self.view_produtos.carregar_dados()
+        elif index == 3:
+            self.view_pedidos.recarregar_dados()
 
     def _navegar_para_lojas(self, cliente_id: int):
         self.tabs.setCurrentWidget(self.view_lojas)
