@@ -41,11 +41,11 @@ Referência principal das regras: `regras_negocio_faturamento.md`. Em caso de d�
 
 ## Fase 2 — Cadastros
 
-- [ ] Tela de clientes (CRUD)
-- [ ] Tela de lojas por cliente (CRUD) com histórico de atendimentos
-- [ ] Tela de produtos (CRUD): nome único, categoria, tipo (serviço ou peça), unidade (SV ou UN), capacidade, preço padrão
-- [ ] Tabela de preço por cliente (opcional): substitui o preço padrão só para os produtos que ela contém
-- [ ] Validação: nome de produto único, código de loja único dentro do cliente
+- [x] Tela de clientes (CRUD)
+- [x] Tela de lojas por cliente (CRUD) com histórico de atendimentos
+- [x] Tela de produtos (CRUD): nome único, categoria, tipo (serviço ou peça), unidade (SV ou UN), capacidade, preço padrão
+- [x] Tabela de preço por cliente (opcional): substitui o preço padrão só para os produtos que ela contém
+- [x] Validação: nome de produto único, código de loja único dentro do cliente
 
 ## Fase 3 — Pedidos
 

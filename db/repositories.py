@@ -1,7 +1,7 @@
 """Funções diretas de persistência em SQLite (repositório)."""
 
 import sqlite3
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from db.models import (
     Cliente, Loja, Produto, PrecoCliente, Pedido, ItemPedido,
     Ajuste, ItemAjuste, Faturamento, FaturamentoItem
@@ -26,6 +26,45 @@ def criar_cliente(conn: sqlite3.Connection, c: Cliente) -> int:
         c.forma_pagamento, c.prazo_entrega, c.texto_impostos, c.ativo
     ))
     return cursor.lastrowid
+
+
+def atualizar_cliente(conn: sqlite3.Connection, c: Cliente) -> None:
+    if c.id is None:
+        raise ValueError("ID do cliente não informado para atualização.")
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE clientes SET
+            razao_social = ?,
+            nome_fantasia = ?,
+            cnpj = ?,
+            inscricao_estadual = ?,
+            endereco = ?,
+            telefone = ?,
+            email = ?,
+            contato = ?,
+            prazo_pagamento = ?,
+            forma_pagamento = ?,
+            prazo_entrega = ?,
+            texto_impostos = ?,
+            ativo = ?
+        WHERE id = ?
+    """, (
+        c.razao_social, c.nome_fantasia, c.cnpj, c.inscricao_estadual,
+        c.endereco, c.telefone, c.email, c.contato, c.prazo_pagamento,
+        c.forma_pagamento, c.prazo_entrega, c.texto_impostos, c.ativo,
+        c.id
+    ))
+
+
+def excluir_cliente(conn: sqlite3.Connection, cliente_id: int) -> None:
+    """Inativa o cliente ou remove caso não haja pedidos vinculados."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as total FROM pedidos WHERE cliente_id = ?", (cliente_id,))
+    row = cursor.fetchone()
+    if row and row["total"] > 0:
+        cursor.execute("UPDATE clientes SET ativo = 0 WHERE id = ?", (cliente_id,))
+    else:
+        cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
 
 
 def buscar_cliente_por_id(conn: sqlite3.Connection, cliente_id: int) -> Optional[Cliente]:
@@ -98,9 +137,66 @@ def criar_loja(conn: sqlite3.Connection, loja: Loja) -> int:
     return cursor.lastrowid
 
 
+def atualizar_loja(conn: sqlite3.Connection, loja: Loja) -> None:
+    if loja.id is None:
+        raise ValueError("ID da loja não informado para atualização.")
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE lojas SET
+            codigo_loja = ?,
+            nome_site = ?,
+            cidade = ?,
+            uf = ?,
+            modelo_bandeira = ?,
+            vencimento = ?,
+            observacao = ?,
+            notificada = ?,
+            ativo = ?
+        WHERE id = ?
+    """, (
+        str(loja.codigo_loja).strip(), loja.nome_site.strip(),
+        loja.cidade.strip(), loja.uf.strip().upper(), loja.modelo_bandeira.strip(),
+        loja.vencimento, loja.observacao, loja.notificada, loja.ativo,
+        loja.id
+    ))
+
+
+def excluir_loja(conn: sqlite3.Connection, loja_id: int) -> None:
+    """Inativa a loja ou remove caso não haja pedidos vinculados."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as total FROM pedidos WHERE loja_id = ?", (loja_id,))
+    row = cursor.fetchone()
+    if row and row["total"] > 0:
+        cursor.execute("UPDATE lojas SET ativo = 0 WHERE id = ?", (loja_id,))
+    else:
+        cursor.execute("DELETE FROM lojas WHERE id = ?", (loja_id,))
+
+
 def buscar_loja_por_id(conn: sqlite3.Connection, loja_id: int) -> Optional[Loja]:
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM lojas WHERE id = ?", (loja_id,))
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return Loja(
+        id=row["id"],
+        cliente_id=row["cliente_id"],
+        codigo_loja=row["codigo_loja"],
+        nome_site=row["nome_site"],
+        cidade=row["cidade"],
+        uf=row["uf"],
+        modelo_bandeira=row["modelo_bandeira"],
+        vencimento=row["vencimento"],
+        observacao=row["observacao"],
+        notificada=row["notificada"],
+        ativo=row["ativo"],
+        created_at=row["created_at"],
+    )
+
+
+def buscar_loja_por_codigo(conn: sqlite3.Connection, cliente_id: int, codigo_loja: str) -> Optional[Loja]:
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM lojas WHERE cliente_id = ? AND codigo_loja = ?", (cliente_id, str(codigo_loja).strip()))
     row = cursor.fetchone()
     if not row:
         return None
@@ -146,6 +242,47 @@ def listar_lojas_por_cliente(conn: sqlite3.Connection, cliente_id: int, apenas_a
     return lojas
 
 
+def obter_historico_atendimentos_loja(conn: sqlite3.Connection, loja_id: int) -> List[Dict[str, Any]]:
+    """Retorna o histórico de atendimentos de uma loja.
+    
+    Regra 3: Uma loja só é considerada atendida depois que o atendimento é faturado.
+    Atendimentos ainda não faturados aparecem como pendentes.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            p.id,
+            p.numero_pedido,
+            p.data_emissao,
+            p.data_execucao,
+            p.status,
+            p.observacao_loja,
+            COALESCE(SUM(i.valor_total), 0.0) as valor_total
+        FROM pedidos p
+        LEFT JOIN itens_pedido i ON i.pedido_id = p.id
+        WHERE p.loja_id = ?
+        GROUP BY p.id
+        ORDER BY p.data_emissao DESC, p.id DESC
+    """, (loja_id,))
+    
+    historico = []
+    for row in cursor.fetchall():
+        status = row["status"]
+        is_faturado = (status in ("FATURADO", "PAGO"))
+        historico.append({
+            "pedido_id": row["id"],
+            "numero_pedido": row["numero_pedido"],
+            "data_emissao": row["data_emissao"],
+            "data_execucao": row["data_execucao"],
+            "status": status,
+            "observacao_loja": row["observacao_loja"],
+            "valor_total": float(row["valor_total"]),
+            "atendido": is_faturado,
+            "situacao_atendimento": "ATENDIDO (FATURADO)" if is_faturado else f"PENDENTE ({status})"
+        })
+    return historico
+
+
 # ==========================================
 # PRODUTOS E PREÇOS POR CLIENTE
 # ==========================================
@@ -162,9 +299,59 @@ def criar_produto(conn: sqlite3.Connection, p: Produto) -> int:
     return cursor.lastrowid
 
 
+def atualizar_produto(conn: sqlite3.Connection, p: Produto) -> None:
+    if p.id is None:
+        raise ValueError("ID do produto não informado para atualização.")
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE produtos SET
+            nome = ?,
+            categoria = ?,
+            tipo = ?,
+            unidade = ?,
+            capacidade = ?,
+            preco_padrao = ?,
+            ativo = ?
+        WHERE id = ?
+    """, (
+        p.nome.strip(), p.categoria, p.tipo, p.unidade, p.capacidade,
+        p.preco_padrao, p.ativo, p.id
+    ))
+
+
+def excluir_produto(conn: sqlite3.Connection, produto_id: int) -> None:
+    """Inativa o produto ou remove caso não tenha sido usado em pedidos."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as total FROM itens_pedido WHERE produto_id = ?", (produto_id,))
+    row = cursor.fetchone()
+    if row and row["total"] > 0:
+        cursor.execute("UPDATE produtos SET ativo = 0 WHERE id = ?", (produto_id,))
+    else:
+        cursor.execute("DELETE FROM produtos WHERE id = ?", (produto_id,))
+
+
 def buscar_produto_por_id(conn: sqlite3.Connection, produto_id: int) -> Optional[Produto]:
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM produtos WHERE id = ?", (produto_id,))
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return Produto(
+        id=row["id"],
+        nome=row["nome"],
+        categoria=row["categoria"],
+        tipo=row["tipo"],
+        unidade=row["unidade"],
+        capacidade=row["capacidade"],
+        preco_padrao=row["preco_padrao"],
+        ativo=row["ativo"],
+        created_at=row["created_at"],
+    )
+
+
+def buscar_produto_por_nome(conn: sqlite3.Connection, nome: str) -> Optional[Produto]:
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM produtos WHERE nome = ?", (nome.strip(),))
     row = cursor.fetchone()
     if not row:
         return None
@@ -207,7 +394,13 @@ def definir_preco_cliente(conn: sqlite3.Connection, cliente_id: int, produto_id:
         INSERT INTO precos_cliente (cliente_id, produto_id, preco)
         VALUES (?, ?, ?)
         ON CONFLICT(cliente_id, produto_id) DO UPDATE SET preco = excluded.preco
-    """, (cliente_id, produto_id, preco))
+    """, (cliente_id, produto_id, float(preco)))
+
+
+def remover_preco_cliente(conn: sqlite3.Connection, cliente_id: int, produto_id: int) -> None:
+    """Remove a personalização de preço do cliente, restaurando o preço padrão da tabela."""
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM precos_cliente WHERE cliente_id = ? AND produto_id = ?", (cliente_id, produto_id))
 
 
 def obter_preco_produto_para_cliente(conn: sqlite3.Connection, cliente_id: int, produto_id: int) -> float:
@@ -229,6 +422,45 @@ def obter_preco_produto_para_cliente(conn: sqlite3.Connection, cliente_id: int, 
         return float(row_prod["preco_padrao"])
 
     return 0.0
+
+
+def listar_precos_por_cliente(conn: sqlite3.Connection, cliente_id: int) -> List[Dict[str, Any]]:
+    """Lista todos os produtos ativos indicando se possuem preço customizado para o cliente."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            p.id as produto_id,
+            p.nome,
+            p.categoria,
+            p.tipo,
+            p.unidade,
+            p.capacidade,
+            p.preco_padrao,
+            pc.preco as preco_cliente
+        FROM produtos p
+        LEFT JOIN precos_cliente pc ON pc.produto_id = p.id AND pc.cliente_id = ?
+        WHERE p.ativo = 1
+        ORDER BY p.tipo, p.nome
+    """, (cliente_id,))
+    
+    itens = []
+    for row in cursor.fetchall():
+        preco_cliente = row["preco_cliente"]
+        preco_padrao = float(row["preco_padrao"])
+        preco_efetivo = float(preco_cliente) if preco_cliente is not None else preco_padrao
+        itens.append({
+            "produto_id": row["produto_id"],
+            "nome": row["nome"],
+            "categoria": row["categoria"],
+            "tipo": row["tipo"],
+            "unidade": row["unidade"],
+            "capacidade": row["capacidade"],
+            "preco_padrao": preco_padrao,
+            "preco_cliente": float(preco_cliente) if preco_cliente is not None else None,
+            "preco_efetivo": preco_efetivo,
+            "tem_personalizacao": (preco_cliente is not None)
+        })
+    return itens
 
 
 # ==========================================
