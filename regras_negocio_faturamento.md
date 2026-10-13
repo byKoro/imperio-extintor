@@ -42,6 +42,21 @@ Versão: 1.0 (rascunho validado nas respostas de 13/10/2026)
 - A coluna "FATURADA?" está preenchida em apenas 5 das 458 linhas (SETEMBRO e OUTUBRO). Para as demais, o status de faturamento não está registrado, e a importação não deve assumir que estão faturadas ou não. Essa definição depende de confirmação.
 - A aba mensal nem sempre coincide com a data de atendimento. Há linhas da aba MARÇO com atendimento em FEVEREIRO e ABRIL, por exemplo. O sistema precisa definir qual critério determina o período de faturamento.
 
+## 3.2 Inativação e reativação de cadastros (clientes, lojas e produtos)
+
+- Entidades cadastradas no sistema (**clientes**, **lojas** e **produtos**) que possuam qualquer vínculo com o histórico operacional ou financeiro não podem ser excluídas fisicamente do banco de dados, para garantir a integridade referencial e a rastreabilidade dos faturamentos e relatórios emitidos.
+- **Definição de sem vínculo operacional:** um registro é considerado sem vínculo operacional exclusivamente quando satisfizer todas as seguintes condições:
+  1. Nenhum pedido cadastrado (em qualquer status: Aberto, Executado, Faturado ou Pago);
+  2. Nenhum ajuste (faturamento complementar) vinculado;
+  3. Nenhum faturamento mensal associado.
+- Registros que atendam à definição de "sem vínculo operacional" podem ser excluídos definitivamente do banco de dados.
+- Ao solicitar a exclusão de um cliente, loja ou produto com vínculo operacional, o sistema realiza a **inativação** (`ativo = 0`). O registro deixa de aparecer em novas seleções de pedidos, mas permanece preservado em históricos, pedidos antigos e relatórios de faturamento.
+- **Unicidade de código (Opção A):** o código ou identificador de uma entidade inativa continua protegido pelas restrições de unicidade do banco de dados:
+  - Para **Lojas**: a restrição `UNIQUE(cliente_id, codigo_loja)` continua impedindo que outra unidade receba o mesmo código dentro do mesmo cliente, mesmo que a loja original esteja inativa.
+  - Para **Produtos**: o nome do produto continua protegido pela restrição `UNIQUE(nome)`.
+  - Para **Clientes**: o CNPJ/razão social permanece único.
+- **Reativação:** registros inativos podem ser reativados no sistema (`ativo = 1`), mantendo o mesmo identificador/código original e restaurando integralmente o histórico acumulado.
+
 ## 4. Produtos e preços
 
 - Cada produto tem um preço padrão, que vem da tabela de produtos.
