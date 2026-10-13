@@ -32,7 +32,6 @@ Versão: 1.0 (rascunho validado nas respostas de 13/10/2026)
 - O modelo/bandeira é um campo de lista controlada, com valores atuais: MODA, CASA, CARTERS, FAN LAB, MODA + CASA, MODA + CASA E CARTERS, MATRIZ, CD, CCR. Variações de digitação (ex.: "CARTERS " com espaço, "FAN LAB" e "FANLAB") devem ser normalizadas na importação.
 - Um mesmo shopping pode ter várias unidades com IDs diferentes, uma por modelo (ex.: IBIRAPUERA SH CARTE´S e IBIRAPUERA SH CASA). Por isso a chave da unidade é o ID, não o nome do shopping.
 - Observações fixas da loja, como "NOTIFICADA" e "ENCAIXE DE ROTEIRO", são campos de cadastro. O sistema deve listá-las na loja e também permitir registrá-las por atendimento, pois a planilha mostra que podem mudar de um mês para outro.
-- A base atual da Riachuelo tem 449 IDs de unidades únicas, com cidade e UF consistentes para cada ID.
 
 ## 3.1 Histórico importado da planilha de manutenções
 
