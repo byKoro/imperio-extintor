@@ -41,5 +41,6 @@ env/
 *.swp
 *.swo
 
-# Logs
+# Logs e saídas temporárias de testes
 *.log
+saida_*.txt
