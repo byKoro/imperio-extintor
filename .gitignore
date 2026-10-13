@@ -18,6 +18,15 @@ dist/
 *.sqlite
 *.sqlite3
 
+# PDFs gerados
+*.pdf
+
+# Planilhas com dados reais (mantém apenas o exemplo sintético de estrutura)
+*.xlsx
+!exemplo_manutencoes.xlsx
+*.xls
+*.csv
+
 # Arquivos temporários do Office / Excel
 ~$*
 

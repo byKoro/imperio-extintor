@@ -74,12 +74,11 @@ def calcular_ajuste_incrementado(
 ) -> Dict[str, Any]:
     """Modo 2 do ajuste: Valores incrementados.
     
-    Mostra o pedido completo atualizado com:
+    Mantém apenas o comparativo de quantidades e totais:
     - quantidade original
     - quantidade acrescentada
     - quantidade final
     - total final
-    Valor a cobrar = total final menos o já faturado no pedido original.
     """
     total_original = calcular_total_pedido(itens_originais)
     
@@ -120,14 +119,23 @@ def calcular_ajuste_incrementado(
             
     itens_tabela = list(consolidado.values())
     total_final_acumulado = round(sum(it["total_final"] for it in itens_tabela), 2)
-    valor_a_cobrar = round(total_final_acumulado - total_original, 2)
     
     return {
         "itens": itens_tabela,
         "total_original": total_original,
         "total_final": total_final_acumulado,
-        "valor_a_cobrar": valor_a_cobrar
     }
+
+
+def calcular_valor_a_cobrar_ajuste_incrementado(
+    total_final: float,
+    total_original: float
+) -> float:
+    """Calcula o valor a cobrar no modo 'valores incrementados'.
+    
+    Pendência 5 do to-do: regra de cobrança pendente de confirmação.
+    """
+    raise NotImplementedError("Pendente de confirmação: pendência 5 do to-do")
 
 
 def calcular_total_acumulado_pedido(valor_original: float, valores_ajustes: Iterable[float]) -> float:

@@ -10,6 +10,7 @@ from app.core.calculations import (
     calcular_totais_completos,
     calcular_ajuste_diferenca,
     calcular_ajuste_incrementado,
+    calcular_valor_a_cobrar_ajuste_incrementado,
     calcular_total_acumulado_pedido,
 )
 from db.models import ItemPedido, ItemAjuste
@@ -76,8 +77,12 @@ def test_modo_ajuste_valores_incrementados():
     resultado = calcular_ajuste_incrementado(itens_originais, itens_ajuste)
     assert resultado["total_original"] == 230.00
     assert resultado["total_final"] == 420.00
-    assert resultado["valor_a_cobrar"] == 190.00
+    assert "valor_a_cobrar" not in resultado
     assert len(resultado["itens"]) == 3
+
+    # A pendência 5 do to-do não foi confirmada; a função de cobrança deve levantar NotImplementedError
+    with pytest.raises(NotImplementedError, match="Pendente de confirmação: pendência 5 do to-do"):
+        calcular_valor_a_cobrar_ajuste_incrementado(resultado["total_final"], resultado["total_original"])
 
 
 def test_total_acumulado_pedido():
