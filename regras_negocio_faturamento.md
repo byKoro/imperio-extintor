@@ -157,6 +157,7 @@ PDF do faturamento mensal:
 ## 10. Vencimento dos extintores
 
 - O status de cada loja (VENCIDO ou NA VALIDADE) é calculado comparando a data de vencimento com a data atual.
+- VENCIDO só depois que o mês de vencimento terminou. No próprio mês de vencimento a loja continua NA VALIDADE (exemplo: vencimento 10/2026 → NA VALIDADE até 31/10/2026, VENCIDO a partir de 01/11/2026).
 - Vencidos são destacados na tela. Nenhum registro é apagado automaticamente.
 - Regra da coluna PESAGEM (vencimento menos 180 dias): pendente de definição.
 
