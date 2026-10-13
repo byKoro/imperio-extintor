@@ -71,7 +71,6 @@ def duplicar_pedido(
         data_emissao=nova_data_emissao,
         data_execucao=None,
         status=STATUS_PEDIDO_ABERTO,
-        observacao_loja=pedido_orig.observacao_loja,
         observacoes=pedido_orig.observacoes,
         prazo_pagamento=pedido_orig.prazo_pagamento,
         forma_pagamento=pedido_orig.forma_pagamento,

@@ -70,7 +70,6 @@ class Pedido:
     data_emissao: str = ""   # 'YYYY-MM-DD'
     data_execucao: Optional[str] = None  # 'YYYY-MM-DD'
     status: str = "ABERTO"  # 'ABERTO', 'EXECUTADO', 'FATURADO', 'PAGO'
-    observacao_loja: Optional[str] = None
     observacoes: Optional[str] = None
     prazo_pagamento: Optional[str] = None
     forma_pagamento: Optional[str] = None

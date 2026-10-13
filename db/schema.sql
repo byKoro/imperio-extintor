@@ -66,7 +66,6 @@ CREATE TABLE IF NOT EXISTS pedidos (
     data_emissao TEXT NOT NULL,  -- YYYY-MM-DD
     data_execucao TEXT,          -- YYYY-MM-DD (obrigatória para status EXECUTADO)
     status TEXT NOT NULL DEFAULT 'ABERTO', -- 'ABERTO', 'EXECUTADO', 'FATURADO', 'PAGO'
-    observacao_loja TEXT,
     observacoes TEXT,
     prazo_pagamento TEXT,
     forma_pagamento TEXT,

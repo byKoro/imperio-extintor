@@ -158,7 +158,7 @@ def test_duplicar_pedido(conn: sqlite3.Connection, dados_ficticios: dict):
         data_emissao="2026-10-01",
         data_execucao="2026-10-05",
         status=STATUS_PEDIDO_EXECUTADO,
-        observacao_loja="Nota original",
+        observacoes="Nota original",
     )
     pedido_orig_id = criar_pedido(conn, pedido_orig)
 

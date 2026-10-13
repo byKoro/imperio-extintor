@@ -256,7 +256,6 @@ def obter_historico_atendimentos_loja(conn: sqlite3.Connection, loja_id: int) ->
             p.data_emissao,
             p.data_execucao,
             p.status,
-            p.observacao_loja,
             COALESCE(SUM(i.valor_total), 0.0) as valor_total
         FROM pedidos p
         LEFT JOIN itens_pedido i ON i.pedido_id = p.id
@@ -275,7 +274,6 @@ def obter_historico_atendimentos_loja(conn: sqlite3.Connection, loja_id: int) ->
             "data_emissao": row["data_emissao"],
             "data_execucao": row["data_execucao"],
             "status": status,
-            "observacao_loja": row["observacao_loja"],
             "valor_total": float(row["valor_total"]),
             "atendido": is_faturado,
             "situacao_atendimento": "ATENDIDO (FATURADO)" if is_faturado else f"PENDENTE ({status})"
@@ -472,13 +470,13 @@ def criar_pedido(conn: sqlite3.Connection, pedido: Pedido) -> int:
     cursor.execute("""
         INSERT INTO pedidos (
             cliente_id, loja_id, numero_pedido, data_emissao,
-            data_execucao, status, observacao_loja, observacoes,
+            data_execucao, status, observacoes,
             prazo_pagamento, forma_pagamento, prazo_entrega, texto_impostos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         pedido.cliente_id, pedido.loja_id, str(pedido.numero_pedido).strip(),
         pedido.data_emissao, pedido.data_execucao, pedido.status,
-        pedido.observacao_loja, pedido.observacoes, pedido.prazo_pagamento,
+        pedido.observacoes, pedido.prazo_pagamento,
         pedido.forma_pagamento, pedido.prazo_entrega, pedido.texto_impostos
     ))
     return cursor.lastrowid
@@ -499,7 +497,6 @@ def atualizar_pedido(conn: sqlite3.Connection, pedido: Pedido) -> None:
             data_emissao = ?,
             data_execucao = ?,
             status = ?,
-            observacao_loja = ?,
             observacoes = ?,
             prazo_pagamento = ?,
             forma_pagamento = ?,
@@ -508,7 +505,7 @@ def atualizar_pedido(conn: sqlite3.Connection, pedido: Pedido) -> None:
         WHERE id = ?
     """, (
         pedido.data_emissao, pedido.data_execucao, pedido.status,
-        pedido.observacao_loja, pedido.observacoes, pedido.prazo_pagamento,
+        pedido.observacoes, pedido.prazo_pagamento,
         pedido.forma_pagamento, pedido.prazo_entrega, pedido.texto_impostos,
         pedido.id
     ))
@@ -528,7 +525,6 @@ def buscar_pedido_por_id(conn: sqlite3.Connection, pedido_id: int) -> Optional[P
         data_emissao=row["data_emissao"],
         data_execucao=row["data_execucao"],
         status=row["status"],
-        observacao_loja=row["observacao_loja"],
         observacoes=row["observacoes"],
         prazo_pagamento=row["prazo_pagamento"],
         forma_pagamento=row["forma_pagamento"],

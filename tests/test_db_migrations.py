@@ -12,13 +12,13 @@ def test_migracao_inicial_e_idempotencia():
     """Testa criação do schema e garantia de idempotência do script de migração."""
     conn = get_connection(":memory:")
     
-    # 1. Primeira execução: deve aplicar versão 1
+    # 1. Primeira execução: deve aplicar versão 2
     v1 = run_migrations(conn)
-    assert v1 == 1
+    assert v1 == 2
 
-    # 2. Segunda execução: não deve falhar e deve manter versão 1
+    # 2. Segunda execução: não deve falhar e deve manter versão 2
     v2 = run_migrations(conn)
-    assert v2 == 1
+    assert v2 == 2
     
     conn.close()
 
