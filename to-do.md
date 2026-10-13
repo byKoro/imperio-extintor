@@ -50,16 +50,16 @@ Referência principal das regras: `regras_negocio_faturamento.md`. Em caso de d�
 
 ## Fase 3 — Pedidos
 
-- [ ] Tela de pedido: número digitado (único por cliente), data de emissão, data de execução, cliente, loja
-- [ ] Seção Serviços e seção Peças separadas, com subtotais e total geral
-- [ ] Preço sugerido da tabela, editável no item
-- [ ] Itens avulsos com descrição livre e preço informado (não criam produto)
-- [ ] Observação em texto livre, sem efeito no cálculo
-- [ ] Condições do pedido vindas do cliente, editáveis no pedido
-- [ ] Status: Aberto → Executado (exige data de execução) → Faturado → Pago (opcional)
-- [ ] Marcação manual de Faturado em qualquer pedido Executado
-- [ ] Ação "duplicar pedido": nova cópia com quantidades e preços zerados, sem alterar o original
-- [ ] Pedido faturado bloqueado para edição
+- [x] Tela de pedido: número digitado (único por cliente), data de emissão, data de execução, cliente, loja
+- [x] Seção Serviços e seção Peças separadas, com subtotais e total geral
+- [x] Preço sugerido da tabela, editável no item
+- [x] Itens avulsos com descrição livre e preço informado (não criam produto)
+- [x] Observação em texto livre, sem efeito no cálculo
+- [x] Condições do pedido vindas do cliente, editáveis no pedido
+- [x] Status: Aberto → Executado (exige data de execução) → Faturado → Pago (opcional)
+- [x] Marcação manual de Faturado em qualquer pedido Executado
+- [x] Ação "duplicar pedido": nova cópia com quantidades e preços zerados, sem alterar o original
+- [x] Pedido faturado bloqueado para edição
 
 ## Fase 4 — Ajustes (faturamento complementar)
 
