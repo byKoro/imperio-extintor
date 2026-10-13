@@ -46,6 +46,7 @@ Referência principal das regras: `regras_negocio_faturamento.md`. Em caso de d�
 - [x] Tela de produtos (CRUD): nome único, categoria, tipo (serviço ou peça), unidade (SV ou UN), capacidade, preço padrão
 - [x] Tabela de preço por cliente (opcional): substitui o preço padrão só para os produtos que ela contém
 - [x] Validação: nome de produto único, código de loja único dentro do cliente
+- [ ] Reativar cadastro inativo pela tela de clientes e lojas (ver regras, seção 3.2)
 
 ## Fase 3 — Pedidos
 

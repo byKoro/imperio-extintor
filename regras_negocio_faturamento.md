@@ -55,7 +55,7 @@ Versão: 1.0 (rascunho validado nas respostas de 13/10/2026)
   - Para **Lojas**: a restrição `UNIQUE(cliente_id, codigo_loja)` continua impedindo que outra unidade receba o mesmo código dentro do mesmo cliente, mesmo que a loja original esteja inativa.
   - Para **Produtos**: o nome do produto continua protegido pela restrição `UNIQUE(nome)`.
   - Para **Clientes**: o CNPJ/razão social permanece único.
-- **Reativação:** registros inativos podem ser reativados no sistema (`ativo = 1`), mantendo o mesmo identificador/código original e restaurando integralmente o histórico acumulado.
+- **Reativação:** registros inativos podem ser reativados no sistema (`ativo = 1`), mantendo o mesmo identificador/código original e restaurando integralmente o histórico acumulado. A reativação pela interface será definida na fase de cadastros; nesta etapa, o botão não é implementado.
 
 ## 4. Produtos e preços
 
