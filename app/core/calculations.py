@@ -131,11 +131,12 @@ def calcular_valor_a_cobrar_ajuste_incrementado(
     total_final: float,
     total_original: float
 ) -> float:
-    """Calcula o valor a cobrar no modo 'valores incrementados'.
-    
-    Pendência 5 do to-do: regra de cobrança pendente de confirmação.
+    """Valor a cobrar no modo 'valores incrementados': total final menos o já faturado.
+
+    Regra confirmada pelo usuário (pendência 5 do to-do). Valores negativos são
+    recusados em billing_service, não aqui.
     """
-    raise NotImplementedError("Pendente de confirmação: pendência 5 do to-do")
+    return round(float(total_final) - float(total_original), 2)
 
 
 def calcular_total_acumulado_pedido(valor_original: float, valores_ajustes: Iterable[float]) -> float:

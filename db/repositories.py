@@ -797,15 +797,63 @@ def criar_ajuste(conn: sqlite3.Connection, ajuste: Ajuste) -> int:
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO ajustes (
-            pedido_id, numero_ajuste, data_emissao, modo_geracao,
+            pedido_id, numero_ajuste, data_emissao, data_execucao, modo_geracao,
             status, faturamento_id, valor_cobrado, observacoes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        ajuste.pedido_id, ajuste.numero_ajuste, ajuste.data_emissao,
+        ajuste.pedido_id, ajuste.numero_ajuste, ajuste.data_emissao, ajuste.data_execucao,
         ajuste.modo_geracao, ajuste.status, ajuste.faturamento_id,
         ajuste.valor_cobrado, ajuste.observacoes
     ))
     return cursor.lastrowid
+
+
+def _mapear_ajuste(row: sqlite3.Row) -> Ajuste:
+    return Ajuste(
+        id=row["id"],
+        pedido_id=row["pedido_id"],
+        numero_ajuste=row["numero_ajuste"],
+        data_emissao=row["data_emissao"],
+        data_execucao=row["data_execucao"],
+        modo_geracao=row["modo_geracao"],
+        status=row["status"],
+        faturamento_id=row["faturamento_id"],
+        valor_cobrado=row["valor_cobrado"],
+        observacoes=row["observacoes"],
+        created_at=row["created_at"],
+    )
+
+
+def buscar_ajuste_por_id(conn: sqlite3.Connection, ajuste_id: int) -> Optional[Ajuste]:
+    row = conn.execute("SELECT * FROM ajustes WHERE id = ?", (ajuste_id,)).fetchone()
+    return _mapear_ajuste(row) if row else None
+
+
+def obter_quantidade_ajustes_pedido(conn: sqlite3.Connection, pedido_id: int) -> int:
+    return conn.execute("SELECT COUNT(*) FROM ajustes WHERE pedido_id = ?", (pedido_id,)).fetchone()[0]
+
+
+def listar_ajustes_pendentes_por_periodo(
+    conn: sqlite3.Connection, cliente_id: int, mes: int, ano: int
+) -> List[Ajuste]:
+    """Ajustes PENDENTES cujo mês de execução é o do período, de pedidos do cliente."""
+    prefixo = f"{ano:04d}-{mes:02d}"
+    rows = conn.execute("""
+        SELECT a.* FROM ajustes a
+        JOIN pedidos p ON p.id = a.pedido_id
+        WHERE p.cliente_id = ?
+          AND a.status = 'PENDENTE'
+          AND substr(a.data_execucao, 1, 7) = ?
+        ORDER BY a.data_execucao, a.id
+    """, (cliente_id, prefixo)).fetchall()
+    return [_mapear_ajuste(r) for r in rows]
+
+
+def marcar_ajuste_faturado(conn: sqlite3.Connection, ajuste_id: int, faturamento_id: int) -> None:
+    conn.execute(
+        "UPDATE ajustes SET status = 'FATURADO', faturamento_id = ? WHERE id = ?",
+        (faturamento_id, ajuste_id),
+    )
 
 
 def adicionar_item_ajuste(conn: sqlite3.Connection, item: ItemAjuste) -> int:
@@ -833,6 +881,7 @@ def listar_ajustes_do_pedido(conn: sqlite3.Connection, pedido_id: int) -> List[A
             pedido_id=row["pedido_id"],
             numero_ajuste=row["numero_ajuste"],
             data_emissao=row["data_emissao"],
+            data_execucao=row["data_execucao"],
             modo_geracao=row["modo_geracao"],
             status=row["status"],
             faturamento_id=row["faturamento_id"],
@@ -861,3 +910,102 @@ def listar_itens_ajuste(conn: sqlite3.Connection, ajuste_id: int) -> List[ItemAj
             ordem=row["ordem"],
         ))
     return itens
+
+
+# ==========================================
+# FATURAMENTO MENSAL
+# ==========================================
+
+def _mapear_faturamento(row: sqlite3.Row) -> Faturamento:
+    return Faturamento(
+        id=row["id"],
+        cliente_id=row["cliente_id"],
+        mes_referencia=row["mes_referencia"],
+        ano_referencia=row["ano_referencia"],
+        data_fechamento=row["data_fechamento"],
+        total_geral=row["total_geral"],
+        status=row["status"],
+        observacoes=row["observacoes"],
+        created_at=row["created_at"],
+    )
+
+
+def criar_faturamento(conn: sqlite3.Connection, f: Faturamento) -> int:
+    cur = conn.execute("""
+        INSERT INTO faturamentos (
+            cliente_id, mes_referencia, ano_referencia, data_fechamento,
+            total_geral, status, observacoes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (f.cliente_id, f.mes_referencia, f.ano_referencia, f.data_fechamento,
+          f.total_geral, f.status, f.observacoes))
+    return cur.lastrowid
+
+
+def buscar_faturamento_por_id(conn: sqlite3.Connection, faturamento_id: int) -> Optional[Faturamento]:
+    row = conn.execute("SELECT * FROM faturamentos WHERE id = ?", (faturamento_id,)).fetchone()
+    return _mapear_faturamento(row) if row else None
+
+
+def buscar_faturamento_por_periodo(
+    conn: sqlite3.Connection, cliente_id: int, mes: int, ano: int
+) -> Optional[Faturamento]:
+    row = conn.execute("""
+        SELECT * FROM faturamentos
+        WHERE cliente_id = ? AND mes_referencia = ? AND ano_referencia = ?
+    """, (cliente_id, mes, ano)).fetchone()
+    return _mapear_faturamento(row) if row else None
+
+
+def atualizar_faturamento(conn: sqlite3.Connection, f: Faturamento) -> None:
+    conn.execute("""
+        UPDATE faturamentos
+        SET data_fechamento = ?, total_geral = ?, status = ?, observacoes = ?
+        WHERE id = ?
+    """, (f.data_fechamento, f.total_geral, f.status, f.observacoes, f.id))
+
+
+def verificar_mes_fechado(conn: sqlite3.Connection, cliente_id: int, mes: int, ano: int) -> bool:
+    row = conn.execute("""
+        SELECT 1 FROM faturamentos
+        WHERE cliente_id = ? AND mes_referencia = ? AND ano_referencia = ? AND status = 'FECHADO'
+    """, (cliente_id, mes, ano)).fetchone()
+    return row is not None
+
+
+def adicionar_item_faturamento(conn: sqlite3.Connection, item: FaturamentoItem) -> int:
+    cur = conn.execute("""
+        INSERT INTO faturamento_itens (faturamento_id, pedido_id, ajuste_id, valor_cobrado)
+        VALUES (?, ?, ?, ?)
+    """, (item.faturamento_id, item.pedido_id, item.ajuste_id, item.valor_cobrado))
+    return cur.lastrowid
+
+
+def listar_itens_faturamento(conn: sqlite3.Connection, faturamento_id: int) -> List[FaturamentoItem]:
+    rows = conn.execute(
+        "SELECT * FROM faturamento_itens WHERE faturamento_id = ? ORDER BY id", (faturamento_id,)
+    ).fetchall()
+    return [FaturamentoItem(
+        id=r["id"], faturamento_id=r["faturamento_id"], pedido_id=r["pedido_id"],
+        ajuste_id=r["ajuste_id"], valor_cobrado=r["valor_cobrado"],
+    ) for r in rows]
+
+
+def listar_pedidos_executados_periodo(
+    conn: sqlite3.Connection, cliente_id: int, mes: int, ano: int
+) -> List[Pedido]:
+    """Pedidos EXECUTADOS do cliente cujo mês de execução é o do período e ainda não estão em nenhuma fatura."""
+    prefixo = f"{ano:04d}-{mes:02d}"
+    ids = conn.execute("""
+        SELECT p.id FROM pedidos p
+        WHERE p.cliente_id = ?
+          AND p.status = 'EXECUTADO'
+          AND substr(p.data_execucao, 1, 7) = ?
+          AND NOT EXISTS (SELECT 1 FROM faturamento_itens fi WHERE fi.pedido_id = p.id)
+        ORDER BY p.data_execucao, p.id
+    """, (cliente_id, prefixo)).fetchall()
+    return [buscar_pedido_por_id(conn, r[0]) for r in ids]
+
+
+def atualizar_status_pedido(conn: sqlite3.Connection, pedido_id: int, status: str) -> None:
+    """Grava o status direto. A validação de transição fica em order_service/billing_service."""
+    conn.execute("UPDATE pedidos SET status = ? WHERE id = ?", (status, pedido_id))

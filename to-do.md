@@ -81,9 +81,9 @@ Referência principal das regras: `regras_negocio_faturamento.md`. Em caso de d�
 
 ## Fase 6 — Vencimento e alertas
 
-- [ ] Status VENCIDO / NA VALIDADE calculado pela data atual
-- [ ] Destaque visual de vencidos na tela
-- [ ] Exibir chave NOTIFICADA como alerta na tela
+- [x] Status VENCIDO / NA VALIDADE calculado pela data atual
+- [x] Destaque visual de vencidos na tela
+- [x] Exibir chave NOTIFICADA como alerta na tela
 - [ ] PESAGEM: pendente de definição, não implementar até confirmar a regra
 
 ## Fase 7 — Visualização em grade

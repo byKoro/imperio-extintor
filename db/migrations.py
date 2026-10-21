@@ -17,6 +17,12 @@ def _migration_v1(conn: sqlite3.Connection) -> None:
             "    status TEXT NOT NULL DEFAULT 'ABERTO', -- 'ABERTO', 'EXECUTADO', 'FATURADO', 'PAGO'\n",
             "    status TEXT NOT NULL DEFAULT 'ABERTO', -- 'ABERTO', 'EXECUTADO', 'FATURADO', 'PAGO'\n    observacao_loja TEXT,\n"
         )
+    # Estado legado: ajustes ainda sem data_execucao (a coluna entra na v3)
+    sql = sql.replace(
+        "    data_emissao TEXT NOT NULL,\n    data_execucao TEXT,\n    modo_geracao TEXT NOT NULL,",
+        "    data_emissao TEXT NOT NULL,\n    modo_geracao TEXT NOT NULL,",
+        1,
+    )
     conn.executescript(sql)
 
 
@@ -97,9 +103,66 @@ def _migration_v2(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON;")
 
 
+def _migration_v3(conn: sqlite3.Connection) -> None:
+    """Migração v3: adiciona data_execucao em ajustes via recriação de tabela.
+
+    Ajustes existentes recebem data_execucao NULL. Um ajuste sem data_execucao
+    fica fora de qualquer fatura até que seja corrigido. No momento da criação
+    desta migração o banco de produção não tinha ajustes (verificado).
+
+    Procedimento idêntico ao da v2: FK desligadas fora da transação, tudo em
+    uma transação, checagem de foreign_key_check antes do COMMIT, ROLLBACK em
+    caso de falha e FK religadas no finally.
+    """
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("BEGIN")
+        conn.execute("DROP TABLE IF EXISTS ajustes_new")
+        conn.execute("""
+            CREATE TABLE ajustes_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE RESTRICT,
+                numero_ajuste TEXT NOT NULL,
+                data_emissao TEXT NOT NULL,
+                data_execucao TEXT,
+                modo_geracao TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDENTE',
+                faturamento_id INTEGER REFERENCES faturamentos(id) ON DELETE SET NULL,
+                valor_cobrado REAL NOT NULL DEFAULT 0.0,
+                observacoes TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                CONSTRAINT uq_ajuste_pedido_numero UNIQUE (pedido_id, numero_ajuste)
+            )
+        """)
+        conn.execute("""
+            INSERT INTO ajustes_new (
+                id, pedido_id, numero_ajuste, data_emissao, data_execucao,
+                modo_geracao, status, faturamento_id, valor_cobrado, observacoes, created_at
+            )
+            SELECT
+                id, pedido_id, numero_ajuste, data_emissao, NULL,
+                modo_geracao, status, faturamento_id, valor_cobrado, observacoes, created_at
+            FROM ajustes
+        """)
+        conn.execute("DROP TABLE ajustes")
+        conn.execute("ALTER TABLE ajustes_new RENAME TO ajustes")
+        violacoes = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violacoes:
+            raise sqlite3.IntegrityError(f"Violação de FK após migração v3: {violacoes}")
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
 MIGRATIONS: Dict[int, tuple[str, Callable[[sqlite3.Connection], None]]] = {
     1: ("Criação inicial do schema (clientes, lojas, produtos, pedidos, faturamentos, ajustes)", _migration_v1),
     2: ("Remove coluna observacao_loja de pedidos via recriação da tabela", _migration_v2),
+    3: ("Adiciona data_execucao em ajustes via recriação da tabela", _migration_v3),
 }
 
 

@@ -33,7 +33,7 @@ def test_migracao_v2_preserva_dados_completos_e_condicoes():
 
     # Aplica migração v2
     nova_versao = run_migrations(conn)
-    assert nova_versao == 2
+    assert nova_versao == 3
 
     # Verifica que observacao_loja não existe mais nas colunas de pedidos
     colunas = [col[1] for col in conn.execute("PRAGMA table_info(pedidos)").fetchall()]
@@ -245,14 +245,14 @@ def test_runner_nao_reexecuta_migracoes_ja_aplicadas_e_suporta_pedidos_new_resid
     """O runner não reexecuta migrações já aplicadas e a migração é segura contra pedidos_new residual."""
     conn = get_connection(":memory:")
     v1 = run_migrations(conn)
-    assert v1 == 2
+    assert v1 == 3
 
     # Segunda chamada: runner verifica versão e não reexecuta
     v2 = run_migrations(conn)
-    assert v2 == 2
+    assert v2 == 3
 
     row = conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()
-    assert row[0] == 2
+    assert row[0] == 3
 
     # Segurança: cria tabela residual pedidos_new para simular aborto prévio e testa reexecução direta de _migration_v2
     conn.execute("CREATE TABLE IF NOT EXISTS pedidos_new (id INTEGER PRIMARY KEY);")
@@ -296,11 +296,43 @@ def test_banco_novo_e_banco_migrado_mesmo_sqlite_master():
     sm_cols_migrado = [(r["name"], r["type"], r["notnull"], r["dflt_value"], r["pk"]) for r in conn_migrado.execute("PRAGMA table_info(schema_migrations)").fetchall()]
     assert sm_cols_novo == sm_cols_migrado
 
-    # Compara versão máxima em schema_migrations (ambos devem estar em 2)
+    # Compara versão máxima em schema_migrations (ambos devem estar em 3)
     max_v_novo = conn_novo.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     max_v_migrado = conn_migrado.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
-    assert max_v_novo == 2
-    assert max_v_migrado == 2
+    assert max_v_novo == 3
+    assert max_v_migrado == 3
 
     conn_novo.close()
     conn_migrado.close()
+
+
+def test_migracao_v3_falha_fk_faz_rollback_e_preserva_ajustes():
+    """v3 com ajuste órfão (FK quebrada): a migração aborta, a tabela original fica intacta e FK volta a ON."""
+    from db.migrations import _migration_v1, _migration_v3
+    import db.repositories as repo
+    from db.models import Cliente, Loja
+
+    conn = get_connection(":memory:")
+    _migration_v1(conn)
+    cid = repo.criar_cliente(conn, Cliente(razao_social="CLIENTE FICTICIO LTDA"))
+    lid = repo.criar_loja(conn, Loja(cliente_id=cid, codigo_loja="L-1", nome_site="S", cidade="C",
+                                     uf="SP", modelo_bandeira="MODA", vencimento="2026-01-01"))
+    conn.execute("INSERT INTO pedidos (cliente_id, loja_id, numero_pedido, data_emissao) VALUES (?, ?, 'P-1', '2026-02-01')",
+                 (cid, lid))
+    pid = conn.execute("SELECT id FROM pedidos").fetchone()[0]
+    conn.execute("INSERT INTO ajustes (pedido_id, numero_ajuste, data_emissao, modo_geracao) VALUES (?, 'P-1-A1', '2026-02-02', 'DIFERENCA')", (pid,))
+    conn.commit()  # PRAGMA foreign_keys não tem efeito dentro de transação aberta
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("INSERT INTO ajustes (pedido_id, numero_ajuste, data_emissao, modo_geracao) VALUES (999, 'ORFAO-A1', '2026-02-03', 'DIFERENCA')")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        _migration_v3(conn)
+
+    assert not conn.in_transaction
+    assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+    colunas = [r[1] for r in conn.execute("PRAGMA table_info(ajustes)")]
+    assert "data_execucao" not in colunas
+    assert conn.execute("SELECT COUNT(*) FROM ajustes").fetchone()[0] == 2
+    assert conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE name = 'ajustes_new'").fetchone()[0] == 0

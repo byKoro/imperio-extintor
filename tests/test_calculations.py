@@ -80,9 +80,8 @@ def test_modo_ajuste_valores_incrementados():
     assert "valor_a_cobrar" not in resultado
     assert len(resultado["itens"]) == 3
 
-    # A pendência 5 do to-do não foi confirmada; a função de cobrança deve levantar NotImplementedError
-    with pytest.raises(NotImplementedError, match="Pendente de confirmação: pendência 5 do to-do"):
-        calcular_valor_a_cobrar_ajuste_incrementado(resultado["total_final"], resultado["total_original"])
+    # Pendência 5 confirmada: valor a cobrar = total final - total original = 190.00
+    assert calcular_valor_a_cobrar_ajuste_incrementado(resultado["total_final"], resultado["total_original"]) == 190.00
 
 
 def test_total_acumulado_pedido():

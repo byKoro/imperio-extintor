@@ -14,11 +14,11 @@ def test_migracao_inicial_e_idempotencia():
     
     # 1. Primeira execução: deve aplicar versão 2
     v1 = run_migrations(conn)
-    assert v1 == 2
+    assert v1 == 3
 
     # 2. Segunda execução: não deve falhar e deve manter versão 2
     v2 = run_migrations(conn)
-    assert v2 == 2
+    assert v2 == 3
     
     conn.close()
 

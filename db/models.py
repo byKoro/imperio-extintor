@@ -98,6 +98,7 @@ class Ajuste:
     pedido_id: int = 0
     numero_ajuste: str = ""
     data_emissao: str = ""
+    data_execucao: Optional[str] = None  # 'YYYY-MM-DD' (mês define o faturamento)
     modo_geracao: str = "DIFERENCA"  # 'DIFERENCA' ou 'INCREMENTADO'
     status: str = "PENDENTE"        # 'PENDENTE' ou 'FATURADO'
     faturamento_id: Optional[int] = None

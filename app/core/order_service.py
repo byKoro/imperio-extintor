@@ -126,6 +126,14 @@ def transitar_status(
     data_exec = data_execucao if data_execucao is not None else pedido.data_execucao
     validar_transicao_status(pedido.status, novo_status, data_exec)
 
+    if novo_status == STATUS_PEDIDO_EXECUTADO and data_exec:
+        mes, ano = int(data_exec[5:7]), int(data_exec[0:4])
+        if repo.verificar_mes_fechado(conn, pedido.cliente_id, mes, ano):
+            raise ValueError(
+                f"O mês {mes:02d}/{ano} já está com faturamento fechado para este cliente. "
+                "Não é possível lançar data de execução nesse mês."
+            )
+
     pedido.status = novo_status
     if novo_status == STATUS_PEDIDO_EXECUTADO:
         pedido.data_execucao = data_exec

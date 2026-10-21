@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS ajustes (
     pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE RESTRICT,
     numero_ajuste TEXT NOT NULL,
     data_emissao TEXT NOT NULL,
+    data_execucao TEXT,
     modo_geracao TEXT NOT NULL, -- 'DIFERENCA' ou 'INCREMENTADO'
     status TEXT NOT NULL DEFAULT 'PENDENTE', -- 'PENDENTE', 'FATURADO'
     faturamento_id INTEGER REFERENCES faturamentos(id) ON DELETE SET NULL,
